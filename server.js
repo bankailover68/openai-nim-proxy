@@ -18,7 +18,7 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 // 🔥 Toggles
 const SHOW_REASONING = false;
 const ENABLE_THINKING_MODE = true; // thinking mode enabled safely
-const MAX_REASONING_TOKENS = 356;
+const MAX_REASONING_TOKENS = 251;
 
 // Model mapping
 const MODEL_MAPPING = {
@@ -70,7 +70,7 @@ app.post('/v1/chat/completions', async (req, res) => {
 
     // Trim messages for safe context
     const safeMessages = trimMessages(messages, MAX_CONTEXT_TOKENS);
-    const safeMaxTokens = Math.min(max_tokens || 2000, MAX_CONTEXT_TOKENS - countTokens(safeMessages));
+    const safeMaxTokens = Math.min(max_tokens || 2500, MAX_CONTEXT_TOKENS - countTokens(safeMessages));
 
     // Build request
     const nimRequest = {
