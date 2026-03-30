@@ -1,4 +1,4 @@
-// server.js - OpenAI to NVIDIA NIM API Proxy with strict reasoning cap
+// server.js - OpenAI to NVIDIA NIM API Proxy with controlled reasoning
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -17,7 +17,7 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 // SETTINGS
 const SHOW_REASONING = true;
 const ENABLE_THINKING_MODE = true;
-const MAX_REASONING_CHARS = 500; // max reasoning characters
+const MAX_REASONING_CHARS = 500;
 
 // MODEL MAPPING
 const MODEL_MAPPING = {
@@ -51,11 +51,18 @@ app.get('/v1/models', (req, res) => {
 app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
-    let nimModel = MODEL_MAPPING[model] || MODEL_MAPPING['gpt-3.5-turbo'];
+    const nimModel = MODEL_MAPPING[model] || MODEL_MAPPING['gpt-3.5-turbo'];
+
+    // Inject system message to limit reasoning
+    const reasoningSystemMessage = {
+      role: 'system',
+      content: `You are allowed a maximum of ${MAX_REASONING_CHARS} characters for internal reasoning. Generate concise reasoning first, then immediately answer the user. Do not exceed this limit.`
+    };
+    const nimMessages = [reasoningSystemMessage, ...messages];
 
     const nimRequest = {
       model: nimModel,
-      messages,
+      messages: nimMessages,
       temperature: temperature || 0.6,
       max_tokens: max_tokens || 32000,
       extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
@@ -82,7 +89,6 @@ app.post('/v1/chat/completions', async (req, res) => {
 
         lines.forEach(line => {
           if (!line.startsWith('data: ')) return;
-
           if (line.includes('[DONE]')) {
             res.write(line + '\n');
             return;
@@ -91,6 +97,7 @@ app.post('/v1/chat/completions', async (req, res) => {
           try {
             const data = JSON.parse(line.slice(6));
 
+            // enforce reasoning cap
             if (data.choices?.[0]?.delta?.reasoning_content) {
               if (reasoningCollected.length < MAX_REASONING_CHARS) {
                 const remaining = MAX_REASONING_CHARS - reasoningCollected.length;
@@ -98,7 +105,6 @@ app.post('/v1/chat/completions', async (req, res) => {
                 reasoningCollected += snippet;
                 data.choices[0].delta.reasoning_content = snippet;
               } else {
-                // stop reasoning after cap
                 data.choices[0].delta.reasoning_content = '';
               }
             }
@@ -112,8 +118,9 @@ app.post('/v1/chat/completions', async (req, res) => {
 
       response.data.on('end', () => res.end());
       response.data.on('error', err => { console.error('Stream error:', err); res.end(); });
+
     } else {
-      // Non-streaming mode: apply reasoning cap
+      // Non-streaming: apply reasoning cap
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
