@@ -2,7 +2,6 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const SHOW_REASONING = false;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,7 +18,7 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 // 🔥 Toggles
 const SHOW_REASONING = false;
 const ENABLE_THINKING_MODE = true; // thinking mode enabled safely
-const MAX_REASONING_TOKENS = 352; // <--- this is the new line
+const MAX_REASONING_TOKENS = 356;
 
 // Model mapping
 const MODEL_MAPPING = {
@@ -94,14 +93,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       let buffer = '';
-      response.data.on('data', chunk => {if (data.choices?.[0]?.delta?.reasoning_content) {
-  if (!data.choices[0].delta._reasoningCount) data.choices[0].delta._reasoningCount = 0;
-  const addedTokens = Math.ceil(data.choices[0].delta.reasoning_content.length / 4);
-  data.choices[0].delta._reasoningCount += addedTokens;
-  if (data.choices[0].delta._reasoningCount > MAX_REASONING_TOKENS) {
-    data.choices[0].delta.reasoning_content = '';
-  }
-}
+      response.data.on('data', chunk => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
